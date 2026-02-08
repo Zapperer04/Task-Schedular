@@ -5,11 +5,10 @@
 
 A production-grade distributed task orchestration system built for horizontal scalability, automatic load balancing, and fault tolerance.
 
-![Status](https://img.shields.io/badge/Status-Production%20Ready-success?style=for-the-badge)
+
 ![Python](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61dafb?style=for-the-badge&logo=react&logoColor=black)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-2496ed?style=for-the-badge&logo=docker&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
 
 
 
