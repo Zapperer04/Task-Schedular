@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  worker1:
+    build: ./backend
+    environment:
+      - API_URL=http://host.docker.internal:5000
+      - REDIS_HOST=host.docker.internal
+      - WORKER_ID=worker-1
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker2:
+    build: ./backend
+    environment:
+      - API_URL=http://host.docker.internal:5000
+      - REDIS_HOST=host.docker.internal
+      - WORKER_ID=worker-2
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker3:
+    build: ./backend
+    environment:
+      - API_URL=http://host.docker.internal:5000
+      - REDIS_HOST=host.docker.internal
+      - WORKER_ID=worker-3
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
