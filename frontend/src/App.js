@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Activity, Cpu, Database, Zap, TrendingUp, Layers, Server, Clock } from 'lucide-react';
 import './App.css';
 
@@ -8,9 +8,11 @@ const API_URL = 'http://localhost:5000';
 
 function App() {
   const [tasks, setTasks] = useState([]);
+  const [workers, setWorkers] = useState([]);
   const [taskType, setTaskType] = useState('send_email');
-  const [emailTo, setEmailTo] = useState('');
-  const [videoFile, setVideoFile] = useState('');
+  const [priority, setPriority] = useState('medium');
+  const [inputValue, setInputValue] = useState('');
+  const [dependencies, setDependencies] = useState('');
   const [stats, setStats] = useState({ total: 0, pending: 0, running: 0, completed: 0 });
   const [throughput, setThroughput] = useState([]);
   const [workerDistribution, setWorkerDistribution] = useState([]);
@@ -27,6 +29,9 @@ function App() {
       const taskData = response.data;
       setTasks(taskData);
 
+      const workersResponse = await axios.get(`${API_URL}/workers`);
+      setWorkers(workersResponse.data);
+
       setStats({
         total: taskData.length,
         pending: taskData.filter(t => t.status === 'pending').length,
@@ -34,7 +39,6 @@ function App() {
         completed: taskData.filter(t => t.status === 'completed').length
       });
 
-      
       const last20 = taskData.slice(0, 20).reverse();
       const throughputData = last20.reduce((acc, task, idx) => {
         const bucket = Math.floor(idx / 4);
@@ -44,7 +48,6 @@ function App() {
       }, []).filter(Boolean);
       setThroughput(throughputData);
 
-      
       setWorkerDistribution([
         { name: 'Worker 1', value: taskData.filter((t, i) => i % 3 === 0 && t.status === 'completed').length },
         { name: 'Worker 2', value: taskData.filter((t, i) => i % 3 === 1 && t.status === 'completed').length },
@@ -57,14 +60,86 @@ function App() {
 
   const createTask = async (e) => {
     e.preventDefault();
-    const data = taskType === 'send_email' ? { to: emailTo } : { file: videoFile };
+
+    let data = {};
+
+    switch (taskType) {
+      case 'send_email':
+        data = { to: inputValue };
+        break;
+      case 'process_video':
+        data = { file: inputValue };
+        break;
+      case 'generate_report':
+        data = { report_type: inputValue };
+        break;
+      case 'data_backup':
+        data = { database: inputValue };
+        break;
+      case 'image_processing':
+        data = { image_path: inputValue };
+        break;
+      case 'send_notification':
+        data = { user_id: inputValue };
+        break;
+      case 'run_ml_model':
+        data = { model_name: inputValue };
+        break;
+      case 'webhook_trigger':
+        data = { url: inputValue };
+        break;
+      default:
+        data = { input: inputValue };
+    }
+
+    const deps = dependencies
+      .split(',')
+      .map(id => parseInt(id.trim()))
+      .filter(id => !isNaN(id));
+
     try {
-      await axios.post(`${API_URL}/tasks`, { type: taskType, data });
-      setEmailTo('');
-      setVideoFile('');
+      await axios.post(`${API_URL}/tasks`, {
+        type: taskType,
+        data,
+        priority: priority,
+        dependencies: deps.length > 0 ? deps : undefined
+      });
+
+      setInputValue('');
+      setDependencies('');
+      setPriority('medium');
       loadTasks();
     } catch (error) {
       console.error('Error creating task:', error);
+      alert(error.response?.data?.error || 'Error creating task');
+    }
+  };
+
+  const getInputPlaceholder = () => {
+    switch (taskType) {
+      case 'send_email': return 'user@domain.com';
+      case 'process_video': return 'media/video_1080p.mp4';
+      case 'generate_report': return 'Monthly Sales Report';
+      case 'data_backup': return 'production_db';
+      case 'image_processing': return 'uploads/photo.jpg';
+      case 'send_notification': return 'user_12345';
+      case 'run_ml_model': return 'sentiment_analysis_v2';
+      case 'webhook_trigger': return 'https://api.example.com/webhook';
+      default: return '';
+    }
+  };
+
+  const getInputLabel = () => {
+    switch (taskType) {
+      case 'send_email': return 'Recipient Address';
+      case 'process_video': return 'Video File Path';
+      case 'generate_report': return 'Report Type';
+      case 'data_backup': return 'Database Name';
+      case 'image_processing': return 'Image Path';
+      case 'send_notification': return 'User ID';
+      case 'run_ml_model': return 'Model Name';
+      case 'webhook_trigger': return 'Webhook URL';
+      default: return 'Input';
     }
   };
 
@@ -99,7 +174,7 @@ function App() {
           <div className="nav-stats">
             <div className="nav-stat">
               <Server size={16} />
-              <span>3 Workers Active</span>
+              <span>{workers.length} Workers Active</span>
             </div>
             <div className="nav-stat">
               <Database size={16} />
@@ -115,31 +190,31 @@ function App() {
 
       <div className="container">
         <div className="metrics-grid">
-          <MetricCard 
-            icon={Activity} 
-            label="Total Tasks Processed" 
+          <MetricCard
+            icon={Activity}
+            label="Total Tasks Processed"
             value={stats.total}
             trend={stats.total > 0 ? 12 : 0}
             color="rgba(139, 92, 246, 0.2)"
             gradient="linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%)"
           />
-          <MetricCard 
-            icon={Clock} 
-            label="Pending in Queue" 
+          <MetricCard
+            icon={Clock}
+            label="Pending in Queue"
             value={stats.pending}
             color="rgba(251, 191, 36, 0.2)"
             gradient="linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(251, 191, 36, 0.05) 100%)"
           />
-          <MetricCard 
-            icon={Cpu} 
-            label="Currently Executing" 
+          <MetricCard
+            icon={Cpu}
+            label="Currently Executing"
             value={stats.running}
             color="rgba(59, 130, 246, 0.2)"
             gradient="linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)"
           />
-          <MetricCard 
-            icon={TrendingUp} 
-            label="Successfully Completed" 
+          <MetricCard
+            icon={TrendingUp}
+            label="Successfully Completed"
             value={stats.completed}
             trend={stats.completed > 0 ? 8 : 0}
             color="rgba(16, 185, 129, 0.2)"
@@ -157,8 +232,8 @@ function App() {
               <AreaChart data={throughput}>
                 <defs>
                   <linearGradient id="colorThroughput" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -215,37 +290,80 @@ function App() {
                   <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
                     <option value="send_email">Email Delivery</option>
                     <option value="process_video">Video Processing</option>
+                    <option value="generate_report">Generate Report</option>
+                    <option value="data_backup">Database Backup</option>
+                    <option value="image_processing">Image Processing</option>
+                    <option value="send_notification">Send Notification</option>
+                    <option value="run_ml_model">Run ML Model</option>
+                    <option value="webhook_trigger">Webhook Trigger</option>
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label>Priority</label>
+                  <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+                    <option value="high">🔴 High Priority</option>
+                    <option value="medium">🟡 Medium Priority</option>
+                    <option value="low">🟢 Low Priority</option>
                   </select>
                 </div>
               </div>
-              {taskType === 'send_email' ? (
-                <div className="form-field">
-                  <label>Recipient Address</label>
-                  <input
-                    type="email"
-                    value={emailTo}
-                    onChange={(e) => setEmailTo(e.target.value)}
-                    placeholder="user@domain.com"
-                    required
-                  />
-                </div>
-              ) : (
-                <div className="form-field">
-                  <label>Media File Path</label>
-                  <input
-                    type="text"
-                    value={videoFile}
-                    onChange={(e) => setVideoFile(e.target.value)}
-                    placeholder="media/video_1080p.mp4"
-                    required
-                  />
-                </div>
-              )}
+
+              <div className="form-field">
+                <label>{getInputLabel()}</label>
+                <input
+                  type={taskType === 'webhook_trigger' ? 'url' : taskType === 'send_email' ? 'email' : 'text'}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  placeholder={getInputPlaceholder()}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Dependencies (Optional)</label>
+                <input
+                  type="text"
+                  value={dependencies}
+                  onChange={(e) => setDependencies(e.target.value)}
+                  placeholder="Task IDs (e.g., 1,2,3)"
+                />
+                <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                  Comma-separated task IDs that must complete first
+                </span>
+              </div>
+
               <button type="submit" className="submit-btn">
                 <Zap size={18} />
                 Enqueue Task
               </button>
             </form>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <h2>Active Workers</h2>
+              <span className="panel-subtitle">Live worker health status</span>
+            </div>
+            <div className="workers-list">
+              {workers.length === 0 ? (
+                <div className="empty-log">
+                  <Server size={32} opacity={0.3} />
+                  <p>No workers connected</p>
+                </div>
+              ) : (
+                workers.map((worker, idx) => (
+                  <div key={idx} className="worker-item">
+                    <div className="worker-indicator active" />
+                    <div className="worker-info">
+                      <div className="worker-name">{worker.worker_id}</div>
+                      <div className="worker-status">
+                        Last seen: {new Date(worker.last_seen).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="panel execution-log">
@@ -267,11 +385,27 @@ function App() {
                         <div className="status-indicator" />
                         <span>#{task.id}</span>
                       </div>
-                      <div className="log-badge">{task.status}</div>
+                      <div className="log-badge">
+                        {task.status}
+                        {task.retry_count > 0 && ` (Retry ${task.retry_count}/${task.max_retries})`}
+                      </div>
                     </div>
                     <div className="log-body">
                       <code className="log-type">{task.type}</code>
+                      <span className={`priority-badge priority-${task.priority}`}>
+                        {task.priority}
+                      </span>
                       <span className="log-data">{JSON.stringify(task.data)}</span>
+                      {task.dependencies && task.dependencies.length > 0 && (
+                        <span className="task-deps">
+                          Depends on: {task.dependencies.join(', ')}
+                        </span>
+                      )}
+                      {task.error_message && (
+                        <span className="task-error">
+                          Error: {task.error_message}
+                        </span>
+                      )}
                     </div>
                     <div className="log-timeline">
                       <div className="timeline-event">
